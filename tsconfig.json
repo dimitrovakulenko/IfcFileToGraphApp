@@ -1,0 +1,12 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ],
+  "compilerOptions": {
+    "skipLibCheck": true, // Skips type checking for declaration files
+    "esModuleInterop": true,
+    "resolveJsonModule": true
+  }
+}
