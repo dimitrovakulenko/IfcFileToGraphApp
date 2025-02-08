@@ -1,19 +1,144 @@
+/* Global layout */
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
   text-align: center;
 }
 
+/* Container: two columns */
+.container {
+  display: flex;
+}
+
+.sidebar-container {
+  width: 18vw;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+/* Left column (Sidebar) - occupies 20% of the available width */
+.sidebar {
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  text-align: left;
+}
+
+.sidebar .tool-name {
+  margin-bottom: 20px;
+  font-size: 1.5rem;
+}
+
+/* Upload Section */
+.upload-section input[type="file"] {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.upload-section button {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  background-color: #4caf50;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.upload-section button:disabled {
+  background-color: #aaa;
+  cursor: not-allowed;
+}
+
+.upload-progress {
+  font-size: 0.9rem;
+  color: #333;
+}
+
+/* Entity Selection */
+.entity-selection h2 {
+  margin-bottom: 10px;
+  font-size: 1.2rem;
+}
+
+.entity-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.entity-buttons button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  background-color: #e7e7e7;
+  cursor: pointer;
+}
+
+.entity-buttons button.active {
+  background-color: #4caf50;
+  color: #fff;
+}
+
+/* Controls (Node Count and Reset) */
+.controls {
+  margin-top: 20px;
+}
+
+.node-count-control label {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.node-count-control input {
+  width: 60px;
+  margin-left: 10px;
+  padding: 4px;
+}
+
+.reset-btn {
+  padding: 6px 12px;
+  background-color: #ff5722;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  width: 100%;
+}
+
+/* Right column (Main) - occupies 80% of the available width */
+.main {
+  width: 80vw;
+  height: 100vh;
+}
+
+/* Graph Area */
+.graph-area {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+/* Properties Panel (part of the graph area) */
+.properties-panel {
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  text-align: left;
+}
+
+/* Provided CSS snippet */
 .logo {
   height: 6em;
   padding: 1.5em;
   will-change: filter;
   transition: filter 300ms;
 }
+
 .logo:hover {
   filter: drop-shadow(0 0 2em #646cffaa);
 }
+
 .logo.react:hover {
   filter: drop-shadow(0 0 2em #61dafbaa);
 }
