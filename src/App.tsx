@@ -1,32 +1,42 @@
 import React, { useState } from "react";
 import CytoscapeComponent from "react-cytoscapejs";
-import cytoscape from "cytoscape"; // Import Cytoscape core
-import dagre from "cytoscape-dagre"; // Import dagre layout
 import axios from "axios";
-
-// Register the dagre layout plugin
-cytoscape.use(dagre);
 
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB per chunk
 
 const App: React.FC = () => {
-  const [graphData, setGraphData] = useState<{ nodes: any[]; edges: any[] }>({
+  // State to hold the full graph data returned from the backend
+  const [fullGraphData, setFullGraphData] = useState<{ nodes: any[]; edges: any[] }>({
     nodes: [],
     edges: [],
   });
+  // State for the nodes/edges currently shown in the visualization
+  const [displayGraphData, setDisplayGraphData] = useState<{ nodes: any[]; edges: any[] }>({
+    nodes: [],
+    edges: [],
+  });
+  // The list of unique node types (extracted from node.data.type)
+  const [nodeTypes, setNodeTypes] = useState<string[]>([]);
+  // The currently selected node type (if any)
+  const [selectedNodeType, setSelectedNodeType] = useState<string | null>(null);
+  // The number of nodes to show initially when a type is selected
+  const [initialNodeCount, setInitialNodeCount] = useState<number>(25);
+
+  // Other existing states…
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [selectedNode, setSelectedNode] = useState<any>(null); // For showing details and expand button
 
   // Handle file selection
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       setFile(event.target.files[0]);
-      setUploadProgress(0); // Reset upload progress
+      setUploadProgress(0);
     }
   };
 
-  // Upload file in chunks and extract graph data from the last response
+  // Upload file in chunks and store the full graph data
   const uploadAndFetchGraph = async () => {
     if (!file) {
       alert("Please select an IFC file before uploading!");
@@ -34,9 +44,15 @@ const App: React.FC = () => {
     }
 
     setLoading(true);
-    setGraphData({ nodes: [], edges: [] }); // Clear the graph data
+    // Clear previous graph data and selections
+    setFullGraphData({ nodes: [], edges: [] });
+    setDisplayGraphData({ nodes: [], edges: [] });
+    setSelectedNode(null);
+    setSelectedNodeType(null);
+    setNodeTypes([]);
+
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-    const fileId = Date.now().toString(); // Unique file ID
+    const fileId = Date.now().toString();
 
     try {
       let lastResponse = null;
@@ -55,7 +71,7 @@ const App: React.FC = () => {
           },
         });
 
-        // Capture the last response (contains the graph data)
+        // Capture the last response (assumed to contain the full graph data)
         lastResponse = response.data;
 
         // Update progress
@@ -63,22 +79,23 @@ const App: React.FC = () => {
         console.log(`Uploaded chunk ${chunkNumber + 1}/${totalChunks}`);
       }
 
-      // Set graph data from the last response
       if (lastResponse) {
-        console.log(lastResponse)
         const { nodes, edges } = lastResponse;
-  
-        // Extract node IDs for validation
-        const nodeIds = new Set(nodes.map((node:any) => node.data.id));
-  
-        // Filter out invalid edges
+
+        // Validate the edges (only keep ones connecting nodes from the response)
+        const nodeIds = new Set(nodes.map((node: any) => String(node.data.id)));
         const validEdges = edges.filter(
-          (edge:any) => nodeIds.has(edge.data.source) && nodeIds.has(edge.data.target)
+          (edge: any) =>
+            nodeIds.has(String(edge.data.source)) && nodeIds.has(String(edge.data.target))
         );
 
-        // Set validated graph data
-        setGraphData({ nodes, edges: validEdges });
-  
+        // Store the full graph data
+        setFullGraphData({ nodes, edges: validEdges });
+
+        // Extract and store the unique node types (assuming each node has a data.type property)
+        const types = new Set(nodes.map((node: any) => node.data.type));
+        setNodeTypes(Array.from(types));
+
         console.log("Graph loaded successfully!");
       } else {
         console.log("No graph data received. Check the backend.");
@@ -90,46 +107,196 @@ const App: React.FC = () => {
     }
   };
 
-  return (
-    <div style={{ padding: "20px" }}>
-      <h1>IFC Graph Viewer</h1>
+  // When a node type tag is clicked, filter the full graph data to display only the first N nodes of that type
+  const handleNodeTypeClick = (type: string) => {
+    setSelectedNodeType(type);
+    const filteredNodes = fullGraphData.nodes.filter(
+      (node) => node.data.type === type
+    );
+    const initialNodes = filteredNodes.slice(0, initialNodeCount);
+    const initialNodeIds = new Set(initialNodes.map((node: any) => String(node.data.id)));
+    const initialEdges = fullGraphData.edges.filter(
+      (edge) =>
+        initialNodeIds.has(String(edge.data.source)) &&
+        initialNodeIds.has(String(edge.data.target))
+    );
+    setDisplayGraphData({ nodes: initialNodes, edges: initialEdges });
+  };
 
-      {/* File Input */}
-      <div style={{ marginBottom: "20px" }}>
-        <input type="file" accept=".ifc" onChange={handleFileChange} />
+  // Allow the user to change how many nodes are initially displayed (default is 25)
+  const handleNodeCountChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const count = parseInt(event.target.value, 10);
+    setInitialNodeCount(count);
+    if (selectedNodeType) {
+      const filteredNodes = fullGraphData.nodes.filter(
+        (node) => node.data.type === selectedNodeType
+      );
+      const initialNodes = filteredNodes.slice(0, count);
+      const initialNodeIds = new Set(initialNodes.map((node: any) => String(node.data.id)));
+      const initialEdges = fullGraphData.edges.filter(
+        (edge) =>
+          initialNodeIds.has(String(edge.data.source)) &&
+          initialNodeIds.has(String(edge.data.target))
+      );
+      setDisplayGraphData({ nodes: initialNodes, edges: initialEdges });
+    }
+  };
+
+  // Function to expand a node by fetching its neighbors from the backend.
+  // The new nodes/edges are merged into the displayed graph.
+  const expandNode = async (nodeId: string) => {
+    try {
+      const response = await axios.post("http://127.0.0.1:5050/fetch_neighbors", {
+        node_id: nodeId,
+      });
+
+      const newNodes = response.data.nodes;
+      const newEdges = response.data.edges;
+
+      setDisplayGraphData((prev) => {
+        const existingNodeIds = new Set(prev.nodes.map((node) => String(node.data.id)));
+        const mergedNodes = [...prev.nodes];
+        newNodes.forEach((node: any) => {
+          if (!existingNodeIds.has(String(node.data.id))) {
+            mergedNodes.push(node);
+          }
+        });
+
+        const existingEdgeIds = new Set(prev.edges.map((edge) => String(edge.data.id)));
+        const mergedEdges = [...prev.edges];
+        newEdges.forEach((edge: any) => {
+          if (!existingEdgeIds.has(String(edge.data.id))) {
+            mergedEdges.push(edge);
+          }
+        });
+
+        return { nodes: mergedNodes, edges: mergedEdges };
+      });
+    } catch (error) {
+      console.error("Error fetching neighbors:", error);
+    }
+  };
+
+  console.log("Full Graph Data:", fullGraphData);
+  console.log("Display Graph Data:", displayGraphData);
+
+  return (
+    <div style={{ padding: "20px", display: "flex" }}>
+      <div style={{ flex: 1 }}>
+        <h1>IFC Graph Viewer</h1>
+
+        {/* File Input */}
+        <div style={{ marginBottom: "20px" }}>
+          <input type="file" accept=".ifc" onChange={handleFileChange} />
+        </div>
+
+        {/* Progress Indicator */}
+        {uploadProgress > 0 && uploadProgress < 100 && (
+          <div style={{ marginBottom: "20px" }}>
+            <p>Uploading... {uploadProgress}%</p>
+          </div>
+        )}
+
+        {/* Upload Button */}
+        <button onClick={uploadAndFetchGraph} disabled={loading || !file}>
+          {loading ? "Processing..." : "Upload and Process Graph"}
+        </button>
+
+        {loading && (
+          <p>Loading... Please wait while the graph is processed.</p>
+        )}
+
+        {/* Node Type Selection */}
+        {!loading && fullGraphData.nodes.length > 0 && (
+          <div style={{ marginTop: "20px" }}>
+            <h2>Select Node Type</h2>
+            {nodeTypes.map((type, index) => (
+              <button
+                key={index}
+                onClick={() => handleNodeTypeClick(type)}
+                style={{
+                  marginRight: "10px",
+                  marginBottom: "10px",
+                  backgroundColor: selectedNodeType === type ? "#4CAF50" : "#e7e7e7",
+                  color: selectedNodeType === type ? "white" : "black",
+                  border: "none",
+                  padding: "5px 10px",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
+              >
+                {type}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Initial Node Count Control */}
+        {selectedNodeType && (
+          <div style={{ marginTop: "10px" }}>
+            <label>
+              Number of nodes to display:
+              <input
+                type="number"
+                value={initialNodeCount}
+                onChange={handleNodeCountChange}
+                min="1"
+                style={{ marginLeft: "10px", width: "60px" }}
+              />
+            </label>
+          </div>
+        )}
+
+        {/* Graph Visualization */}
+        {!loading && displayGraphData.nodes.length > 0 && (
+          <div style={{ height: "600px", marginTop: "20px" }}>
+            <CytoscapeComponent
+              elements={[...displayGraphData.nodes, ...displayGraphData.edges]}
+              style={{ width: "100%", height: "100%" }}
+              layout={{
+                name: "cose",
+                fit: true,
+                padding: 30,
+                nodeRepulsion: 2000,
+                idealEdgeLength: 100,
+                edgeElasticity: 0.5,
+                gravity: 0.2,
+                animate: true,
+              }}
+              cy={(cy) => {
+                // When a node is clicked, show its details in the sidebar.
+                cy.on("tap", "node", (event: any) => {
+                  const nodeData = event.target.data();
+                  setSelectedNode(nodeData);
+                });
+              }}
+            />
+          </div>
+        )}
       </div>
 
-      {/* Progress Indicator */}
-      {uploadProgress > 0 && uploadProgress < 100 && (
-        <div style={{ marginBottom: "20px" }}>
-          <p>Uploading... {uploadProgress}%</p>
-        </div>
-      )}
-
-      {/* Upload Button */}
-      <button onClick={uploadAndFetchGraph} disabled={loading || !file}>
-        {loading ? "Processing..." : "Upload and Visualize Graph"}
-      </button>
-
-      {/* Loading Spinner */}
-      {loading && <p>Loading... Please wait while the graph is processed.</p>}
-
-      {/* Graph Visualization */}
-      {!loading && graphData.nodes.length > 0 && (
-        <div style={{ height: "600px", marginTop: "20px" }}>
-          <CytoscapeComponent
-            elements={[...graphData.nodes, ...graphData.edges]}
-            style={{ width: "100%", height: "100%" }}
-            layout={{
-              name: "dagre", // A hierarchical layout
-            }}
-            cy={(cy) => {
-              // Customize behavior or log Cytoscape instance
-              cy.on("tap", "node", (event: any) => {
-                console.log("Tapped node:", event.target.data());
-              });
-            }}
-          />
+      {/* Sidebar for Node Details */}
+      {selectedNode && (
+        <div
+          style={{
+            width: "300px",
+            background: "#f9f9f9",
+            padding: "10px",
+            marginLeft: "20px",
+            borderRadius: "5px",
+            boxShadow: "0px 0px 5px rgba(0,0,0,0.3)",
+          }}
+        >
+          <h3>Node Details</h3>
+          {Object.entries(selectedNode).map(([key, value]) => (
+            <p key={key}>
+              <b>{key}</b>: {JSON.stringify(value)}
+            </p>
+          ))}
+          <button onClick={() => expandNode(selectedNode.id)}>
+            Expand Neighbors
+          </button>
+          <button onClick={() => setSelectedNode(null)}>Close</button>
         </div>
       )}
     </div>
