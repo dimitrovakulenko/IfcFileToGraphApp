@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import CytoscapeComponent from "react-cytoscapejs";
 import axios from "axios";
 
@@ -21,12 +21,17 @@ const App: React.FC = () => {
   const [selectedNodeType, setSelectedNodeType] = useState<string | null>(null);
   // The number of nodes to show initially when a type is selected
   const [initialNodeCount, setInitialNodeCount] = useState<number>(25);
+  // A key to force re-mount of Cytoscape when switching types (resetting the view)
+  const [graphKey, setGraphKey] = useState<number>(0);
 
-  // Other existing states…
+  // Other states…
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [selectedNode, setSelectedNode] = useState<any>(null); // For showing details and expand button
+
+  // Optional: a ref for direct access to the Cytoscape instance
+  const cyRef = useRef<any>(null);
 
   // Handle file selection
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -44,7 +49,7 @@ const App: React.FC = () => {
     }
 
     setLoading(true);
-    // Clear previous graph data and selections
+    // Clear previous data and selections
     setFullGraphData({ nodes: [], edges: [] });
     setDisplayGraphData({ nodes: [], edges: [] });
     setSelectedNode(null);
@@ -82,17 +87,18 @@ const App: React.FC = () => {
       if (lastResponse) {
         const { nodes, edges } = lastResponse;
 
-        // Validate the edges (only keep ones connecting nodes from the response)
+        // Validate the edges (only keep those connecting nodes from the response)
         const nodeIds = new Set(nodes.map((node: any) => String(node.data.id)));
         const validEdges = edges.filter(
           (edge: any) =>
-            nodeIds.has(String(edge.data.source)) && nodeIds.has(String(edge.data.target))
+            nodeIds.has(String(edge.data.source)) &&
+            nodeIds.has(String(edge.data.target))
         );
 
         // Store the full graph data
         setFullGraphData({ nodes, edges: validEdges });
 
-        // Extract and store the unique node types (assuming each node has a data.type property)
+        // Extract and store the unique node types (assumes each node has a data.type property)
         const types = new Set(nodes.map((node: any) => node.data.type));
         setNodeTypes(Array.from(types));
 
@@ -107,24 +113,37 @@ const App: React.FC = () => {
     }
   };
 
-  // When a node type tag is clicked, filter the full graph data to display only the first N nodes of that type
+  // When a node type tag is clicked, reset the view and display the first N nodes of that type.
   const handleNodeTypeClick = (type: string) => {
+    // Always reset the node count to default for a fresh selection
+    const defaultCount = 25;
+    setInitialNodeCount(defaultCount);
     setSelectedNodeType(type);
+    setSelectedNode(null); // Clear any previously selected node
+
+    // Filter the full data based on the selected type
     const filteredNodes = fullGraphData.nodes.filter(
       (node) => node.data.type === type
     );
-    const initialNodes = filteredNodes.slice(0, initialNodeCount);
+    console.log(`Filtering for type "${type}". Total found: ${filteredNodes.length}`);
+
+    // Grab the first N nodes
+    const initialNodes = filteredNodes.slice(0, defaultCount);
     const initialNodeIds = new Set(initialNodes.map((node: any) => String(node.data.id)));
+
+    // Get only the edges that connect nodes within this subset
     const initialEdges = fullGraphData.edges.filter(
-      (edge) =>
+      (edge: any) =>
         initialNodeIds.has(String(edge.data.source)) &&
         initialNodeIds.has(String(edge.data.target))
     );
-    console.log('Setting nodes: ' + initialNodes.length)
+    
+    // Set the display graph data and force a remount of Cytoscape
     setDisplayGraphData({ nodes: initialNodes, edges: initialEdges });
+    setGraphKey(prev => prev + 1);
   };
 
-  // Allow the user to change how many nodes are initially displayed (default is 25)
+  // Allow the user to change how many nodes are initially displayed.
   const handleNodeCountChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const count = parseInt(event.target.value, 10);
     setInitialNodeCount(count);
@@ -132,19 +151,21 @@ const App: React.FC = () => {
       const filteredNodes = fullGraphData.nodes.filter(
         (node) => node.data.type === selectedNodeType
       );
+      console.log(`Changing node count for "${selectedNodeType}". Total available: ${filteredNodes.length}`);
       const initialNodes = filteredNodes.slice(0, count);
       const initialNodeIds = new Set(initialNodes.map((node: any) => String(node.data.id)));
       const initialEdges = fullGraphData.edges.filter(
-        (edge) =>
+        (edge: any) =>
           initialNodeIds.has(String(edge.data.source)) &&
           initialNodeIds.has(String(edge.data.target))
       );
       setDisplayGraphData({ nodes: initialNodes, edges: initialEdges });
+      setGraphKey(prev => prev + 1);
     }
   };
 
   // Function to expand a node by fetching its neighbors from the backend.
-  // The new nodes/edges are merged into the displayed graph.
+  // The new nodes/edges are merged into the currently displayed graph.
   const expandNode = async (nodeId: string) => {
     try {
       const response = await axios.post("http://127.0.0.1:5050/fetch_neighbors", {
@@ -178,9 +199,6 @@ const App: React.FC = () => {
     }
   };
 
-  console.log("Full Graph Data:", fullGraphData);
-  console.log("Display Graph Data:", displayGraphData);
-
   return (
     <div style={{ padding: "20px", display: "flex" }}>
       <div style={{ flex: 1 }}>
@@ -191,7 +209,7 @@ const App: React.FC = () => {
           <input type="file" accept=".ifc" onChange={handleFileChange} />
         </div>
 
-        {/* Progress Indicator */}
+        {/* Upload Progress */}
         {uploadProgress > 0 && uploadProgress < 100 && (
           <div style={{ marginBottom: "20px" }}>
             <p>Uploading... {uploadProgress}%</p>
@@ -203,9 +221,7 @@ const App: React.FC = () => {
           {loading ? "Processing..." : "Upload and Process Graph"}
         </button>
 
-        {loading && (
-          <p>Loading... Please wait while the graph is processed.</p>
-        )}
+        {loading && <p>Loading... Please wait while the graph is processed.</p>}
 
         {/* Node Type Selection */}
         {!loading && fullGraphData.nodes.length > 0 && (
@@ -252,6 +268,7 @@ const App: React.FC = () => {
         {!loading && displayGraphData.nodes.length > 0 && (
           <div style={{ height: "600px", marginTop: "20px" }}>
             <CytoscapeComponent
+              key={graphKey} // Using a unique key forces remounting the component
               elements={[...displayGraphData.nodes, ...displayGraphData.edges]}
               style={{ width: "100%", height: "100%" }}
               layout={{
@@ -265,6 +282,7 @@ const App: React.FC = () => {
                 animate: true,
               }}
               cy={(cy) => {
+                cyRef.current = cy;
                 // When a node is clicked, show its details in the sidebar.
                 cy.on("tap", "node", (event: any) => {
                   const nodeData = event.target.data();
