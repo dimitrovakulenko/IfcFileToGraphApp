@@ -120,6 +120,7 @@ const App: React.FC = () => {
         initialNodeIds.has(String(edge.data.source)) &&
         initialNodeIds.has(String(edge.data.target))
     );
+    console.log('Setting nodes: ' + initialNodes.length)
     setDisplayGraphData({ nodes: initialNodes, edges: initialEdges });
   };
 
