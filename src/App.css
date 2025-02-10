@@ -1,6 +1,5 @@
 /* Global layout */
 #root {
-  text-align: center;
 }
 
 /* Container: two columns */
@@ -9,14 +8,14 @@
 }
 
 .sidebar-container {
-  width: 18vw;
+  width: 320px;
   height: 100vh;
   overflow-y: auto;
 }
 
 /* Left column (Sidebar) - occupies 20% of the available width */
 .sidebar {
-  padding: 20px;
+  padding: 10px;
   border-radius: 8px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   text-align: left;
@@ -56,6 +55,11 @@
 }
 
 /* Entity Selection */
+.entity-selection {
+  height: 30vh;
+  overflow-y: auto;
+}
+
 .entity-selection h2 {
   margin-bottom: 10px;
   font-size: 1.2rem;
@@ -65,6 +69,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  font-size: 0.8rem;
 }
 
 .entity-buttons button {
@@ -108,23 +113,27 @@
 
 /* Right column (Main) - occupies 80% of the available width */
 .main {
-  width: 80vw;
-  height: 100vh;
+  width: calc(100vw - 320px);
+  background-color: lightblue;
 }
 
 /* Graph Area */
 .graph-area {
   border: 1px solid #ddd;
   border-radius: 4px;
+  background-color: beige;
 }
 
 /* Properties Panel (part of the graph area) */
 .properties-panel {
   background: #fff;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  height: 30vh;
+  padding: 5px 20px;
+  /* border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); */
   text-align: left;
+  font-size: 0.8em;
+  overflow-y: auto;
 }
 
 /* Provided CSS snippet */

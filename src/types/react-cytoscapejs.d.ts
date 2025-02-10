@@ -7,6 +7,7 @@ declare module "react-cytoscapejs" {
       layout?: LayoutOptions; // Add layout support
       cy?: (cy: cytoscape.Core) => void; // Callback to access the Cytoscape instance
       style?: React.CSSProperties; // Inline styles for the container
+      className?: string;
     }
   
     export default class CytoscapeComponent extends Component<CytoscapeComponentProps> {}

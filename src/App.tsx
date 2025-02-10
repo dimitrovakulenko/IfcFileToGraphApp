@@ -1,7 +1,11 @@
 import React, { useState, useRef } from "react";
 import CytoscapeComponent from "react-cytoscapejs";
+import cytoscape from "cytoscape";
+import cola from "cytoscape-cola";
 import axios from "axios";
 import "./App.css";
+
+cytoscape.use(cola);
 
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB per chunk
 
@@ -247,37 +251,6 @@ const App: React.FC = () => {
             </div>
           </div>
         )}
-      </div>
-      </div>
-
-      {/* Right Column (80%) */}
-      <div className="main">
-        <div className="graph-area">
-          {displayGraphData.nodes.length > 0 && (
-            <CytoscapeComponent
-              key={graphKey}
-              elements={[...displayGraphData.nodes, ...displayGraphData.edges]}
-              layout={{
-                name: "cose",
-                fit: true,
-                padding: 30,
-                nodeRepulsion: 2000,
-                idealEdgeLength: 100,
-                edgeElasticity: 0.5,
-                gravity: 0.2,
-                animate: true,
-              }}
-              style={{ width: "100%", height: "600px" }}
-              cy={(cy) => {
-                cyRef.current = cy;
-                cy.on("tap", "node", (event: any) => {
-                  const nodeData = event.target.data();
-                  setSelectedNode(nodeData);
-                });
-              }}
-            />
-          )}
-        </div>
 
         {selectedNode && (
           <div className="properties-panel">
@@ -291,6 +264,40 @@ const App: React.FC = () => {
             <button onClick={() => setSelectedNode(null)}>Close</button>
           </div>
         )}
+      </div>
+      </div>
+
+      {/* Right Column (80%) */}
+      <div className="main">
+        <div className="graph-area">
+          {displayGraphData.nodes.length > 0 && (
+            <CytoscapeComponent
+              key={graphKey}
+              elements={[...displayGraphData.nodes, ...displayGraphData.edges]}
+              layout={{
+                name: "cola",
+                fit: true,
+                padding: 30,
+                nodeRepulsion: 2000,
+                idealEdgeLength: 100,
+                edgeElasticity: 0.5,
+                gravity: 0.2,
+                animate: true,
+              }}
+              style={{ height: "100vh" }}
+              cy={(cy) => {
+                cyRef.current = cy;
+                cy.on("tap", "node", (event: any) => {
+                  const nodeData = event.target.data();
+                  setSelectedNode(nodeData);
+                });
+                cy.on("click", (event: any) => {
+                  setSelectedNode(null)
+                });
+              }}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
