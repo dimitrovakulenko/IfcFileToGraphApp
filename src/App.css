@@ -21,6 +21,11 @@
   text-align: left;
 }
 
+.container h2 {
+  margin-bottom: 10px;
+  font-size: 1.2rem;
+}
+
 .sidebar .tool-name {
   margin-bottom: 20px;
   font-size: 1.5rem;
@@ -54,40 +59,8 @@
   color: #333;
 }
 
-/* Entity Selection */
-.entity-selection {
-  height: 30vh;
-  overflow-y: auto;
-}
-
-.entity-selection h2 {
-  margin-bottom: 10px;
-  font-size: 1.2rem;
-}
-
-.entity-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  font-size: 0.8rem;
-}
-
-.entity-buttons button {
-  padding: 6px 12px;
-  border: none;
-  border-radius: 4px;
-  background-color: #e7e7e7;
-  cursor: pointer;
-}
-
-.entity-buttons button.active {
-  background-color: #4caf50;
-  color: #fff;
-}
-
 /* Controls (Node Count and Reset) */
 .controls {
-  margin-top: 20px;
 }
 
 .node-count-control label {
@@ -111,6 +84,45 @@
   width: 100%;
 }
 
+/* Entity Selection */
+.entity-selection {
+  height: 30vh;
+  margin-bottom: 20px;
+}
+
+.entity-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.8rem;
+  overflow-y: auto;
+  max-height: 30vh;
+}
+
+.entity-buttons button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  background-color: #e7e7e7;
+  cursor: pointer;
+}
+
+.entity-buttons button.active {
+  background-color: #4caf50;
+  color: #fff;
+}
+
+/* Properties Panel (part of the graph area) */
+.properties-panel {
+  height: 30vh;
+  padding: 5px 10px;
+  /* border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); */
+  text-align: left;
+  font-size: 0.8em;
+  overflow-y: auto;
+}
+
 /* Right column (Main) - occupies 80% of the available width */
 .main {
   width: calc(100vw - 320px);
@@ -122,18 +134,6 @@
   border: 1px solid #ddd;
   border-radius: 4px;
   background-color: beige;
-}
-
-/* Properties Panel (part of the graph area) */
-.properties-panel {
-  background: #fff;
-  height: 30vh;
-  padding: 5px 20px;
-  /* border-radius: 8px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); */
-  text-align: left;
-  font-size: 0.8em;
-  overflow-y: auto;
 }
 
 /* Provided CSS snippet */

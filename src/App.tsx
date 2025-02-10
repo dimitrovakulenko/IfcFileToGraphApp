@@ -254,7 +254,7 @@ const App: React.FC = () => {
 
         {selectedNode && (
           <div className="properties-panel">
-            <h3>Node Details</h3>
+            <h2>Node Details</h2>
             {Object.entries(selectedNode).map(([key, value]) => (
               <p key={key}>
                 <strong>{key}:</strong> {JSON.stringify(value)}
