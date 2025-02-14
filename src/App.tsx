@@ -22,8 +22,8 @@ const App: React.FC = () => {
   });
   // List of unique node types (based on node.data.type)
   const [nodeTypes, setNodeTypes] = useState<string[]>([]);
-  // Currently selected entity (node) type
-  const [selectedNodeType, setSelectedNodeType] = useState<string | null>(null);
+  // Currently activated entity (node) types
+  const [activeNodeTypes, setActiveNodeTypes] = useState<Set<string>>(new Set());
   // How many nodes to display (default 25)
   const [initialNodeCount, setInitialNodeCount] = useState<number>(25);
   // A key used to force re‑mount of Cytoscape when the view is reset
@@ -58,7 +58,7 @@ const App: React.FC = () => {
     setFullGraphData({ nodes: [], edges: [] });
     setDisplayGraphData({ nodes: [], edges: [] });
     setSelectedNode(null);
-    setSelectedNodeType(null);
+    setActiveNodeTypes(new Set<string>());
     setNodeTypes([]);
 
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
@@ -96,7 +96,7 @@ const App: React.FC = () => {
         setFullGraphData({ nodes, edges: validEdges });
 
         // Extract unique node types (assuming node.data.type exists)
-        const types = new Set(nodes.map((node: any) => node.data.type));
+        const types = new Set<string>(nodes.map((node: any) => node.data.type));
         setNodeTypes(Array.from(types));
       }
     } catch (error) {
@@ -108,22 +108,29 @@ const App: React.FC = () => {
 
   // When a node type is clicked, show the first N nodes of that type.
   const handleNodeTypeClick = (type: string) => {
-    const defaultCount = 25;
-    setInitialNodeCount(defaultCount);
-    setSelectedNodeType(type);
-    setSelectedNode(null);
+    setActiveNodeTypes((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(type)) {
+        newSet.delete(type); // Turn off
+      } else {
+        newSet.add(type); // Turn on
+      }
+      updateGraphDisplay(newSet);
+      return newSet;
+    });
+  };
 
-    const filteredNodes = fullGraphData.nodes.filter(
-      (node) => node.data.type === type
+  const updateGraphDisplay = (activeTypes: Set<string>) => {
+    const filteredNodes = fullGraphData.nodes.filter((node) =>
+      activeTypes.has(node.data.type)
     );
-    const initialNodes = filteredNodes.slice(0, defaultCount);
-    const initialNodeIds = new Set(initialNodes.map((node: any) => String(node.data.id)));
-    const initialEdges = fullGraphData.edges.filter(
-      (edge: any) =>
-        initialNodeIds.has(String(edge.data.source)) &&
-        initialNodeIds.has(String(edge.data.target))
+  
+    const nodeIds = new Set(filteredNodes.map((node) => String(node.data.id)));
+    const filteredEdges = fullGraphData.edges.filter(
+      (edge) => nodeIds.has(edge.data.source) && nodeIds.has(edge.data.target)
     );
-    setDisplayGraphData({ nodes: initialNodes, edges: initialEdges });
+  
+    setDisplayGraphData({ nodes: filteredNodes, edges: filteredEdges });
     setGraphKey((prev) => prev + 1);
   };
 
@@ -131,73 +138,43 @@ const App: React.FC = () => {
   const handleNodeCountChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const count = parseInt(event.target.value, 10);
     setInitialNodeCount(count);
-    if (selectedNodeType) {
-      const filteredNodes = fullGraphData.nodes.filter(
-        (node) => node.data.type === selectedNodeType
-      );
-      const initialNodes = filteredNodes.slice(0, count);
-      const initialNodeIds = new Set(initialNodes.map((node: any) => String(node.data.id)));
-      const initialEdges = fullGraphData.edges.filter(
-        (edge: any) =>
-          initialNodeIds.has(String(edge.data.source)) &&
-          initialNodeIds.has(String(edge.data.target))
-      );
-      setDisplayGraphData({ nodes: initialNodes, edges: initialEdges });
-      setGraphKey((prev) => prev + 1);
-    }
+    updateGraphDisplay(activeNodeTypes)    
   };
 
   // Reset the view to the default node subset for the selected type.
   const resetView = () => {
-    if (selectedNodeType) {
-      const defaultCount = 25;
-      setInitialNodeCount(defaultCount);
-      setSelectedNode(null);
-      const filteredNodes = fullGraphData.nodes.filter(
-        (node) => node.data.type === selectedNodeType
-      );
-      const initialNodes = filteredNodes.slice(0, defaultCount);
-      const initialNodeIds = new Set(initialNodes.map((node: any) => String(node.data.id)));
-      const initialEdges = fullGraphData.edges.filter(
-        (edge: any) =>
-          initialNodeIds.has(String(edge.data.source)) &&
-          initialNodeIds.has(String(edge.data.target))
-      );
-      setDisplayGraphData({ nodes: initialNodes, edges: initialEdges });
-      setGraphKey((prev) => prev + 1);
-    }
+    const defaultCount = 25;
+    setInitialNodeCount(defaultCount);
+    setSelectedNode(null);
+    updateGraphDisplay(activeNodeTypes)
   };
 
   // Expand a node by fetching its neighbors from the backend.
-  const expandNode = async (nodeId: string) => {
-    try {
-      const response = await axios.post("http://127.0.0.1:5050/fetch_neighbors", {
-        node_id: nodeId,
-      });
-      const newNodes = response.data.nodes;
-      const newEdges = response.data.edges;
-
-      setDisplayGraphData((prev) => {
-        const existingNodeIds = new Set(prev.nodes.map((node) => String(node.data.id)));
-        const mergedNodes = [...prev.nodes];
-        newNodes.forEach((node: any) => {
-          if (!existingNodeIds.has(String(node.data.id))) {
-            mergedNodes.push(node);
-          }
-        });
-        const existingEdgeIds = new Set(prev.edges.map((edge) => String(edge.data.id)));
-        const mergedEdges = [...prev.edges];
-        newEdges.forEach((edge: any) => {
-          if (!existingEdgeIds.has(String(edge.data.id))) {
-            mergedEdges.push(edge);
-          }
-        });
-        return { nodes: mergedNodes, edges: mergedEdges };
-      });
-    } catch (error) {
-      console.error("Error fetching neighbors:", error);
-    }
-  };
+  const expandNode = (nodeId: string) => {
+    setDisplayGraphData((prev) => {
+      // Extract existing nodes and edges
+      const existingNodeIds = new Set(prev.nodes.map((node) => String(node.data.id)));
+      const existingEdgeIds = new Set(prev.edges.map((edge) => String(edge.data.id)));
+  
+      // Find new nodes that are neighbors of the given node
+      const newEdges = fullGraphData.edges.filter(
+        (edge) => edge.data.source === nodeId || edge.data.target === nodeId
+      );
+      const newNodeIds = new Set(
+        newEdges.flatMap((edge) => [String(edge.data.source), String(edge.data.target)])
+      );
+      
+      const newNodes = fullGraphData.nodes.filter(
+        (node) => newNodeIds.has(String(node.data.id)) && !existingNodeIds.has(String(node.data.id))
+      );
+  
+      // Merge new nodes and edges into the current display graph
+      return {
+        nodes: [...prev.nodes, ...newNodes],
+        edges: [...prev.edges, ...newEdges.filter(edge => !existingEdgeIds.has(String(edge.data.id)))]
+      };
+    });
+  };  
 
   return (
     <div className="container">
@@ -216,24 +193,22 @@ const App: React.FC = () => {
           )}
         </div>
 
-        {selectedNodeType && (
-          <div className="controls">
-            <div className="node-count-control">
-              <label>
-                Number of nodes:
-                <input
-                  type="number"
-                  value={initialNodeCount}
-                  onChange={handleNodeCountChange}
-                  min="1"
-                />
-              </label>
-            </div>
-            <button onClick={resetView} className="reset-btn">
-              Reset View
-            </button>
+        <div className="controls">
+          <div className="node-count-control">
+            <label>
+              Number of nodes:
+              <input
+                type="number"
+                value={initialNodeCount}
+                onChange={handleNodeCountChange}
+                min="1"
+              />
+            </label>
           </div>
-        )}
+          <button onClick={resetView} className="reset-btn">
+            Reset View
+          </button>
+        </div>
 
         {fullGraphData.nodes.length > 0 && (
           <div className="entity-selection">
@@ -243,7 +218,7 @@ const App: React.FC = () => {
                 <button
                   key={index}
                   onClick={() => handleNodeTypeClick(type)}
-                  className={selectedNodeType === type ? "active" : ""}
+                  className={activeNodeTypes.has(type) ? "active" : ""}
                 >
                   {type}
                 </button>
@@ -291,7 +266,7 @@ const App: React.FC = () => {
                   const nodeData = event.target.data();
                   setSelectedNode(nodeData);
                 });
-                cy.on("click", (event: any) => {
+                cy.on("click", (_: any) => {
                   setSelectedNode(null)
                 });
               }}
