@@ -20,8 +20,6 @@
 /* Left column (Sidebar) - occupies 20% of the available width */
 .sidebar {
   padding: 0px 10px 0px 10px;
-  border-radius: 8px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   text-align: left;
   display: flex;
   flex-direction: column;
@@ -67,7 +65,7 @@
 
 /* Controls (Node Count and Reset) */
 .controls {
-  padding: 10px 0
+  padding: 10px 0;
 }
 
 .node-count-control label {
@@ -94,6 +92,12 @@
 
 /* Entity Selection */
 .entity-selection {
+  padding: 0px 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6);
+  text-align: left;
+  font-size: 0.8em;
+  overflow-y: auto;
 }
 
 .entity-buttons {
@@ -120,13 +124,17 @@
 
 /* Properties Panel (part of the graph area) */
 .properties-panel {
+  margin-top: 10px;
   height: 30vh;
-  padding: 5px 10px;
-  /* border-radius: 8px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); */
+  padding: 0px 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6);
   text-align: left;
   font-size: 0.8em;
-  overflow-y: auto;
+}
+
+.properties-panel button{
+  margin: 0px 10px 0px 0px;
 }
 
 /* Right column (Main) - occupies 80% of the available width */

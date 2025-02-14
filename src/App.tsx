@@ -239,11 +239,7 @@ const App: React.FC = () => {
                     </button>
                   ))}
                 </div>
-              </div>
-          )}
-
-          {fullGraphData.nodes.length > 0 && (
-              <div className="controls">
+                <div className="controls">
                 <div className="node-count-control">
                   <label>
                     Number of nodes:
@@ -258,6 +254,7 @@ const App: React.FC = () => {
                 <button onClick={resetView} className="reset-btn">
                   Reset View
                 </button>
+              </div>
               </div>
           )}
 
@@ -287,8 +284,8 @@ const App: React.FC = () => {
                 name: "cola",
                 fit: true,
                 padding: 30,
-                nodeRepulsion: 200,
-                idealEdgeLength: 100,
+                nodeRepulsion: 2048,
+                idealEdgeLength: 200,
                 edgeElasticity: 0.5,
                 gravity: 0.2,
                 animate: true,
