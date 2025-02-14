@@ -25,7 +25,7 @@ const App: React.FC = () => {
   // Currently activated entity (node) types
   const [activeNodeTypes, setActiveNodeTypes] = useState<Set<string>>(new Set());
   // How many nodes to display (default 25)
-  const [initialNodeCount, setInitialNodeCount] = useState<number>(25);
+  const [initialNodeCount, setInitialNodeCount] = useState<number>(100);
   // A key used to force re‑mount of Cytoscape when the view is reset
   const [graphKey, setGraphKey] = useState<number>(0);
 
@@ -175,10 +175,20 @@ const App: React.FC = () => {
 
   // Reset the view to the default node subset for the selected type.
   const resetView = () => {
-    const defaultCount = 25;
+    const defaultCount = 100;
     setInitialNodeCount(defaultCount);
     setSelectedNode(null);
     updateGraphDisplay(activeNodeTypes)
+  };
+
+  const debugNode = (nodeId: string) => {
+    const existingNode = fullGraphData.nodes.find(n => n.data.id == nodeId)
+    console.log(existingNode)
+
+    const allEdges = fullGraphData.edges.filter(
+      (edge) => edge.data.source === nodeId || edge.data.target === nodeId
+    );
+    console.log(allEdges)
   };
 
   // Expand a node by fetching its neighbors from the backend.
@@ -267,7 +277,8 @@ const App: React.FC = () => {
                   <strong>{key}:</strong> {JSON.stringify(value)}
                 </p>
               ))}
-              <button onClick={() => expandNode(selectedNode.id)}>Expand Neighbors</button>
+              <button onClick={() => expandNode(selectedNode.id)}>Expand</button>
+              <button onClick={() => debugNode(selectedNode.id)}>Debug</button>
               <button onClick={() => setSelectedNode(null)}>Close</button>
             </div>
           )}
