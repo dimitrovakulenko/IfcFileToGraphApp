@@ -294,7 +294,6 @@ const App: React.FC = () => {
               elements={[...displayGraphData.nodes, ...displayGraphData.edges]}
               layout={{
                 name: "cola",
-                fit: true,
                 padding: 30,
                 nodeRepulsion: 2048,
                 idealEdgeLength: 400,
@@ -338,7 +337,8 @@ const App: React.FC = () => {
                   {
                     selector: "edge",
                     style: {
-                      "width": 1.5,
+                      "label": "data(label)",
+                      "font-size": "6px",
                       "line-color": "#999",
                       "target-arrow-color": "#999",
                       "target-arrow-shape": "triangle",
