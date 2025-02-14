@@ -263,7 +263,6 @@ const App: React.FC = () => {
 
   return (
     <div className="container">
-      {/* Left Column (20%) */}
       <div className="sidebar-container">
         <div className="sidebar">
           <h1 className="tool-name">IFC Graph Viewer</h1>
@@ -328,7 +327,6 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Right Column (80%) */}
       <div className="main">
         <div className="graph-area">
           {displayGraphData.nodes.length > 0 && (

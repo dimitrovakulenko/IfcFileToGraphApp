@@ -140,11 +140,12 @@
 .main {
   width: calc(100vw - 320px);
   background-color: beige;
+  box-sizing: border-box;
 }
 
 /* Graph Area */
 .graph-area {
-  border: 1px solid #ddd;
+  box-sizing: border-box;
   border-radius: 4px;
   background-color: beige;
 }
