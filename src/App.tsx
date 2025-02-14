@@ -191,32 +191,74 @@ const App: React.FC = () => {
     console.log(allEdges)
   };
 
+  const isolateNode = (nodeId: string) => {
+    const existingNode = fullGraphData.nodes.find(n => n.data.id == nodeId)
+    console.log(existingNode)
+
+    // const allEdges = fullGraphData.edges.filter(
+    //   (edge) => edge.data.source === nodeId || edge.data.target === nodeId
+    // );
+    
+    setDisplayGraphData({ nodes: [existingNode], edges: [] });
+  };  
+
   // Expand a node by fetching its neighbors from the backend.
   const expandNode = (nodeId: string) => {
-    setDisplayGraphData((prev) => {
-      // Extract existing nodes and edges
-      const existingNodeIds = new Set(prev.nodes.map((node) => String(node.data.id)));
-      const existingEdgeIds = new Set(prev.edges.map((edge) => String(edge.data.id)));
+    if (!cyRef.current) return;
+    const cy = cyRef.current;
   
-      // Find new nodes that are neighbors of the given node
-      const newEdges = fullGraphData.edges.filter(
-        (edge) => edge.data.source === nodeId || edge.data.target === nodeId
-      );
-      const newNodeIds = new Set(
-        newEdges.flatMap((edge) => [String(edge.data.source), String(edge.data.target)])
-      );
-      
-      const newNodes = fullGraphData.nodes.filter(
-        (node) => newNodeIds.has(String(node.data.id)) && !existingNodeIds.has(String(node.data.id))
-      );
+    // Get existing nodes and edges from state
+    const existingNodeIds = new Set(displayGraphData.nodes.map((node) => String(node.data.id)));
+    const existingEdgeIds = new Set(displayGraphData.edges.map((edge) => String(edge.data.id)));
   
-      // Merge new nodes and edges into the current display graph
-      return {
-        nodes: [...prev.nodes, ...newNodes],
-        edges: [...prev.edges, ...newEdges.filter(edge => !existingEdgeIds.has(String(edge.data.id)))]
-      };
+    // Find new edges related to the node that are not already in the state
+    const newEdgesData = fullGraphData.edges.filter(
+      (edge) =>
+        (edge.data.source === nodeId || edge.data.target === nodeId) &&
+        !existingEdgeIds.has(String(edge.data.id))
+    );
+  
+    // From these edges, find the new nodes that are not already present
+    const newNodeIds = new Set(
+      newEdgesData.flatMap((edge) => [String(edge.data.source), String(edge.data.target)])
+    );
+    const newNodesData = fullGraphData.nodes.filter(
+      (node) => newNodeIds.has(String(node.data.id)) && !existingNodeIds.has(String(node.data.id))
+    );
+  
+    // Update React state to keep track of currently displayed elements.
+    setDisplayGraphData((prev) => ({
+      nodes: [...prev.nodes, ...newNodesData],
+      edges: [...prev.edges, ...newEdgesData],
+    }));
+  
+    // Add new nodes and edges directly to the Cytoscape instance.
+    cy.batch(() => {
+      newNodesData.forEach((node) => {
+        if (!cy.getElementById(node.data.id).length) {
+          cy.add({ group: "nodes", ...node });
+        }
+      });
+      newEdgesData.forEach((edge) => {
+        if (!cy.getElementById(edge.data.id).length) {
+          cy.add({ group: "edges", ...edge });
+        }
+      });
     });
-    setGraphKey((prev) => prev + 1);
+  
+    // Run layout to adjust positions of the new nodes while preserving existing ones.
+    const layout = cy.layout({
+      name: "cola",
+      fit: false, // do not fit the viewport to the whole graph
+      randomize: false, // preserve positions for nodes already placed
+      animate: true,
+      padding: 30,
+      nodeRepulsion: 2048,
+      idealEdgeLength: 400,
+      edgeElasticity: 0.5,
+      gravity: 0.5,
+    });
+    layout.run();
   };  
 
   return (
@@ -279,6 +321,7 @@ const App: React.FC = () => {
               ))}
               <button onClick={() => expandNode(selectedNode.id)}>Expand</button>
               <button onClick={() => debugNode(selectedNode.id)}>Debug</button>
+              <button onClick={() => isolateNode(selectedNode.id)}>Isolate</button>
               <button onClick={() => setSelectedNode(null)}>Close</button>
             </div>
           )}

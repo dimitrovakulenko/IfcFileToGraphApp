@@ -125,7 +125,6 @@
 /* Properties Panel (part of the graph area) */
 .properties-panel {
   margin-top: 10px;
-  height: 30vh;
   padding: 0px 10px;
   border-radius: 8px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6);
@@ -134,7 +133,7 @@
 }
 
 .properties-panel button{
-  margin: 0px 10px 0px 0px;
+  margin: 0px 10px 10px 0px;
 }
 
 /* Right column (Main) - occupies 80% of the available width */
