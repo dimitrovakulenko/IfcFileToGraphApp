@@ -2,7 +2,6 @@ import React, { useState, useRef } from "react";
 import CytoscapeComponent from "react-cytoscapejs";
 import cytoscape from "cytoscape";
 import cola from "cytoscape-cola";
-import axios from "axios";
 import "./App.css";
 
 cytoscape.use(cola);
@@ -10,36 +9,23 @@ cytoscape.use(cola);
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB per chunk
 
 const App: React.FC = () => {
-  // Full graph data from the backend
   const [fullGraphData, setFullGraphData] = useState<{ nodes: any[]; edges: any[] }>({
     nodes: [],
     edges: [],
   });
-  // Graph data currently shown in the Cytoscape view
-  const [displayGraphData, setDisplayGraphData] = useState<{ nodes: any[]; edges: any[] }>({
-    nodes: [],
-    edges: [],
-  });
-  // List of unique node types (based on node.data.type)
-  const [nodeTypes, setNodeTypes] = useState<string[]>([]);
-  // Currently activated entity (node) types
-  const [activeNodeTypes, setActiveNodeTypes] = useState<Set<string>>(new Set());
-  // How many nodes to display (default 25)
-  const [initialNodeCount, setInitialNodeCount] = useState<number>(100);
-  // A key used to force re‑mount of Cytoscape when the view is reset
-  const [graphKey, setGraphKey] = useState<number>(0);
 
-  // Other states
+  const [nodeTypes, setNodeTypes] = useState<string[]>([]);
+  const [activeNodeTypes, setActiveNodeTypes] = useState<Set<string>>(new Set());
+  const [initialNodeCount, setInitialNodeCount] = useState<number>(100);
+
   const [loading, setLoading] = useState<boolean>(false);
   const [file, setFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
-  const [selectedNode, setSelectedNode] = useState<any>(null);
+
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
-  // Ref for the Cytoscape instance
   const cyRef = useRef<any>(null);
 
-  // Handle file selection
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       setFile(event.target.files[0]);
@@ -47,7 +33,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Upload file in chunks and store full graph data
   const uploadAndFetchGraph = async () => {
     if (!file) {
       alert("Please select an IFC file before uploading!");
@@ -55,10 +40,8 @@ const App: React.FC = () => {
     }
 
     setLoading(true);
-    // Clear any previous data and selections
     setFullGraphData({ nodes: [], edges: [] });
-    setDisplayGraphData({ nodes: [], edges: [] });
-    setSelectedNode(null);
+    setSelectedNodeId(null);
     setActiveNodeTypes(new Set<string>());
     setNodeTypes([]);
 
@@ -72,7 +55,9 @@ const App: React.FC = () => {
         const end = Math.min(file.size, start + CHUNK_SIZE);
         const chunk = file.slice(start, end);
 
-        const response = await axios.post("http://127.0.0.1:5050/upload", chunk, {
+        const response = await fetch("api/upload", {
+          method: "POST",
+          body: chunk,
           headers: {
             "Content-Type": "application/octet-stream",
             "file-id": fileId,
@@ -81,13 +66,14 @@ const App: React.FC = () => {
           },
         });
 
-        lastResponse = response.data;
+        if(response.ok)
+          lastResponse = await response.json();
         setUploadProgress(Math.round(((chunkNumber + 1) / totalChunks) * 100));
       }
 
       if (lastResponse) {
         const { nodes, edges } = lastResponse;
-        // Validate edges so that only those connecting returned nodes remain
+
         const nodeIds = new Set(nodes.map((node: any) => String(node.data.id)));
         const validEdges = edges.filter(
           (edge: any) =>
@@ -96,7 +82,6 @@ const App: React.FC = () => {
         );
         setFullGraphData({ nodes, edges: validEdges });
 
-        // Extract unique node types (assuming node.data.type exists)
         const types = new Set<string>(nodes.map((node: any) => node.data.type));
         setNodeTypes(Array.from(types));
       }
@@ -107,7 +92,6 @@ const App: React.FC = () => {
     }
   };
 
-  // When a node type is clicked, show the first N nodes of that type.
   const handleNodeTypeClick = (type: string) => {
     setActiveNodeTypes((prev) => {
       const newSet = new Set(prev);
@@ -123,47 +107,87 @@ const App: React.FC = () => {
     });
   };
 
-  const updateGraphDisplayWith = (type: String, turnOn: boolean) => {
-    var updatedNodes: any[];
-    if(turnOn){
-      updatedNodes = displayGraphData.nodes
-      const lenthBefore = updatedNodes.length
-
+  const updateGraphDisplayWith = (type: string, turnOn: boolean) => {
+    console.log('updateGraphDisplayWith', type, turnOn)
+    if (!cyRef.current) return;
+    const cy = cyRef.current;
+  
+    let updatedNodes = cy.nodes().toArray(); 
+  
+    if (turnOn) {
+      const nodesToAdd: any[] = [];
       fullGraphData.nodes.forEach(n => {
-        if(n.data.type == type){
-          const found = updatedNodes.find(n2 => n2.data.id == n.data.id)
-          if(!found){
-            if(updatedNodes.length < lenthBefore + initialNodeCount)
-              updatedNodes.push(n)
-          }            
+        if (n.data.type === type) {
+          const exists = cy.getElementById(n.data.id).nonempty()
+          if (!exists) {
+            if (nodesToAdd.length < initialNodeCount) {
+              nodesToAdd.push(n);
+            }
+          }
         }
-      })      
-    }
-    else {
-      updatedNodes = displayGraphData.nodes.filter(n => n.data.type != type)      
-    }
+      });
 
-    const nodeIds = new Set(updatedNodes.map((node) => String(node.data.id)));
+      updatedNodes = [...updatedNodes, ...nodesToAdd];
+      
+      cy.batch(() => {
+        nodesToAdd.forEach(n => {
+          cy.add({ group: "nodes", ...n });
+        })
+      });      
+    } else {
+      cy.batch(() => {
+        cy.nodes().filter((n:any) => n.data("type") === type).remove();
+      });
+
+      updatedNodes = cy.nodes().toArray();      
+    }
+  
+    const nodeIds = new Set(updatedNodes.map((node:any) => String(node.data.id)));
     const updatedEdges = fullGraphData.edges.filter(
-      (edge) => nodeIds.has(String(edge.data.source)) && nodeIds.has(String(edge.data.target))
+      (edge) =>
+        nodeIds.has(String(edge.data.source)) &&
+        nodeIds.has(String(edge.data.target))
     );
-
-    setDisplayGraphData({ nodes: updatedNodes, edges: updatedEdges });
-    setGraphKey((prev) => prev + 1);
-  }
-
+  
+    cy.batch(() => {
+      cy.edges().forEach((edge:any) => {
+        const targetExists = cy.getElementById(edge.data("target")).nonempty();
+        const sourceExists = cy.getElementById(edge.data("source")).nonempty();
+        if (!targetExists || !sourceExists) {
+          edge.remove();
+        }
+      });
+      const existingEdgeIds = new Set(cy.edges().map((e:any) => e.id()));
+      const edgesToAdd = updatedEdges.filter(edge => !existingEdgeIds.has(edge.data.id));
+      cy.add(edgesToAdd);
+    });
+  
+    updateCyLayout(cy);
+  };
+  
   const updateGraphDisplay = (activeTypes: Set<string>) => {
+    if (!cyRef.current) return;
+    const cy = cyRef.current;
+  
     const filteredNodes = fullGraphData.nodes.filter((node) =>
       activeTypes.has(node.data.type)
     );
   
     const nodeIds = new Set(filteredNodes.map((node) => String(node.data.id)));
     const filteredEdges = fullGraphData.edges.filter(
-      (edge) => nodeIds.has(String(edge.data.source)) && nodeIds.has(String(edge.data.target))
+      (edge) =>
+        nodeIds.has(String(edge.data.source)) &&
+        nodeIds.has(String(edge.data.target))
     );
-
-    setDisplayGraphData({ nodes: filteredNodes, edges: filteredEdges });
-    setGraphKey((prev) => prev + 1);
+  
+    cy.batch(() => {
+      cy.elements().remove();
+  
+      cy.add(filteredNodes.map(node => ({ group: "nodes", ...node })));
+      cy.add(filteredEdges.map(edge => ({ group: "edges", ...edge })));
+    });
+ 
+    updateCyLayout(cy);
   };
 
   // Allow user to change how many nodes are initially displayed.
@@ -177,7 +201,7 @@ const App: React.FC = () => {
   const resetView = () => {
     const defaultCount = 100;
     setInitialNodeCount(defaultCount);
-    setSelectedNode(null);
+    setSelectedNodeId(null);
     updateGraphDisplay(activeNodeTypes)
   };
 
@@ -192,65 +216,89 @@ const App: React.FC = () => {
   };
 
   const isolateNode = (nodeId: string) => {
-    const existingNode = fullGraphData.nodes.find(n => n.data.id == nodeId)
-    console.log(existingNode)
+    if (!cyRef.current) return;
+    const cy = cyRef.current;
+  
+    cy.batch(() => {
+      cy.nodes().forEach((node:any) => {
+        if (node.id() !== nodeId) {
+          node.remove();
+        }
+      });
+  
+      cy.edges().forEach((edge:any) => {
+        edge.remove();
+      });
+    });
+   
+    updateCyLayout(cy);
+  };
 
-    // const allEdges = fullGraphData.edges.filter(
-    //   (edge) => edge.data.source === nodeId || edge.data.target === nodeId
-    // );
-    
-    setDisplayGraphData({ nodes: [existingNode], edges: [] });
-  };  
-
-  // Expand a node by fetching its neighbors from the backend.
   const expandNode = (nodeId: string) => {
     if (!cyRef.current) return;
     const cy = cyRef.current;
   
-    // Get existing nodes and edges from state
-    const existingNodeIds = new Set(displayGraphData.nodes.map((node) => String(node.data.id)));
-    const existingEdgeIds = new Set(displayGraphData.edges.map((edge) => String(edge.data.id)));
-  
-    // Find new edges related to the node that are not already in the state
-    const newEdgesData = fullGraphData.edges.filter(
-      (edge) =>
-        (edge.data.source === nodeId || edge.data.target === nodeId) &&
-        !existingEdgeIds.has(String(edge.data.id))
-    );
-  
-    // From these edges, find the new nodes that are not already present
-    const newNodeIds = new Set(
-      newEdgesData.flatMap((edge) => [String(edge.data.source), String(edge.data.target)])
-    );
-    const newNodesData = fullGraphData.nodes.filter(
-      (node) => newNodeIds.has(String(node.data.id)) && !existingNodeIds.has(String(node.data.id))
-    );
-  
-    // Update React state to keep track of currently displayed elements.
-    setDisplayGraphData((prev) => ({
-      nodes: [...prev.nodes, ...newNodesData],
-      edges: [...prev.edges, ...newEdgesData],
-    }));
-  
-    // Add new nodes and edges directly to the Cytoscape instance.
     cy.batch(() => {
-      newNodesData.forEach((node) => {
-        if (!cy.getElementById(node.data.id).length) {
-          cy.add({ group: "nodes", ...node });
+      //console.log("fullGraphData.edges.length:", fullGraphData.edges.length)
+      fullGraphData.edges.forEach((edge) => {
+        if (edge.data.source === nodeId) {
+          const targetExists = cy.getElementById(edge.data.target).nonempty();
+          if(!targetExists){
+            //console.log('trying to create target node')
+            const targetNode = fullGraphData.nodes.find(
+              (n) => String(n.data.id) === String(edge.data.target)
+            );
+            if (targetNode) {
+              //console.log('adding target node')
+              cy.add({ group: "nodes", ...targetNode });
+            }  
+          }
+        }
+        else if (edge.data.target === nodeId){
+          const sourceExists = cy.getElementById(edge.data.source).nonempty();
+          if(!sourceExists){
+            //console.log('trying to create source node')
+            const sourceNode = fullGraphData.nodes.find(
+              (n) => String(n.data.id) === String(edge.data.source)
+            );  
+            if (sourceNode) {
+              //console.log('adding source node');
+              cy.add({ group: "nodes", ...sourceNode });
+            }
+          }
         }
       });
-      newEdgesData.forEach((edge) => {
-        if (!cy.getElementById(edge.data.id).length) {
-          cy.add({ group: "edges", ...edge });
+    });
+
+    console.log(cy.nodes())
+
+
+    cy.batch(() => {
+      fullGraphData.edges.forEach((edge) => {
+        if (edge.data.source === nodeId || edge.data.target === nodeId) {
+          if (cy.getElementById(edge.data.id).empty()) {
+            const sourceExists = cy.getElementById(edge.data.source).nonempty();
+            const targetExists = cy.getElementById(edge.data.target).nonempty();
+            if (sourceExists && targetExists) {
+              cy.add({ group: "edges", ...edge });
+            } else {
+              console.warn(
+                `Skipping edge ${edge.data.id} because one of its nodes does not exist.`
+              );
+            }
+          }
         }
       });
     });
   
-    // Run layout to adjust positions of the new nodes while preserving existing ones.
+    updateCyLayout(cy);
+  };  
+  
+  const updateCyLayout = (cy: any, fit:boolean=false) => {
     const layout = cy.layout({
       name: "cola",
-      fit: false, // do not fit the viewport to the whole graph
-      randomize: false, // preserve positions for nodes already placed
+      fit: fit,
+      randomize: false,
       animate: true,
       padding: 30,
       nodeRepulsion: 2048,
@@ -259,7 +307,7 @@ const App: React.FC = () => {
       gravity: 0.5,
     });
     layout.run();
-  };  
+  }
 
   return (
     <div className="container">
@@ -292,36 +340,45 @@ const App: React.FC = () => {
                   ))}
                 </div>
                 <div className="controls">
-                <div className="node-count-control">
-                  <label>
-                    Number of nodes:
-                    <input
-                      type="number"
-                      value={initialNodeCount}
-                      onChange={handleNodeCountChange}
-                      min="1"
-                    />
-                  </label>
+                  <div className="node-count-control">
+                    <label>
+                      Number of nodes:
+                      <input
+                        type="number"
+                        value={initialNodeCount}
+                        onChange={handleNodeCountChange}
+                        min="1"
+                      />
+                    </label>
+                  </div>
+                  <button onClick={resetView} className="reset-btn">
+                    Reset View
+                  </button>
                 </div>
-                <button onClick={resetView} className="reset-btn">
-                  Reset View
-                </button>
-              </div>
               </div>
           )}
 
-          {selectedNode && (
+          {selectedNodeId && (
             <div className="properties-panel">
               <h2>Node Details</h2>
-              {Object.entries(selectedNode).map(([key, value]) => (
-                <p key={key}>
-                  <strong>{key}:</strong> {JSON.stringify(value)}
-                </p>
-              ))}
-              <button onClick={() => expandNode(selectedNode.id)}>Expand</button>
-              <button onClick={() => debugNode(selectedNode.id)}>Debug</button>
-              <button onClick={() => isolateNode(selectedNode.id)}>Isolate</button>
-              <button onClick={() => setSelectedNode(null)}>Close</button>
+              {cyRef.current && selectedNodeId && (
+                (() => {
+                  const node = cyRef.current.nodes().find((n:any) => n.data("id") === selectedNodeId);
+                  if (!node) {
+                    return <p>Node not found.</p>;
+                  }
+                  const nodeData = node.data();
+                  return Object.entries(nodeData).map(([key, value]) => (
+                    <p key={key}>
+                      <strong>{key}:</strong> {JSON.stringify(value)}
+                    </p>
+                  ));
+                })()
+              )}
+              <button onClick={() => expandNode(selectedNodeId)}>Expand</button>
+              <button onClick={() => debugNode(selectedNodeId)}>Debug</button>
+              <button onClick={() => isolateNode(selectedNodeId)}>Isolate</button>
+              <button onClick={() => setSelectedNodeId(null)}>Close</button>
             </div>
           )}
         </div>
@@ -329,29 +386,17 @@ const App: React.FC = () => {
 
       <div className="main">
         <div className="graph-area">
-          {displayGraphData.nodes.length > 0 && (
             <CytoscapeComponent
-              key={graphKey}
-              elements={[...displayGraphData.nodes, ...displayGraphData.edges]}
-              layout={{
-                name: "cola",
-                padding: 30,
-                nodeRepulsion: 2048,
-                idealEdgeLength: 400,
-                edgeElasticity: 0.5,
-                gravity: 0.5,
-                animate: true,
-              }}
+              elements={[]}
               style={{ height: "100vh" }}
               cy={(cy) => {
                 cyRef.current = cy;
                 cy.on("tap", "node", (event: any) => {
                   const nodeData = event.target.data();
-                  setSelectedNode(nodeData);
                   setSelectedNodeId(nodeData.id);
                 });
                 cy.on("click", (_: any) => {
-                  setSelectedNode(null)
+                  setSelectedNodeId(null)
                 });
 
                 if (selectedNodeId) {
@@ -389,7 +434,6 @@ const App: React.FC = () => {
                 ]);
               }}
             />
-          )}
         </div>
       </div>
     </div>

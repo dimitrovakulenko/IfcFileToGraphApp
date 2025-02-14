@@ -1,7 +1,3 @@
-/* Global layout */
-#root {
-}
-
 /* Container: two columns */
 .container {
   width: 100vw;
@@ -9,30 +5,20 @@
   display: flex;
 }
 
+/* Column 1: sidebar */
 .sidebar-container {
-  width: 320px;
+  width: 340px;
   height: 100%;
   overflow-y: auto;
   background-color: #f3e8c5;
   display: flex;
 }
 
-/* Left column (Sidebar) - occupies 20% of the available width */
 .sidebar {
   padding: 0px 10px 0px 10px;
   text-align: left;
   display: flex;
   flex-direction: column;
-}
-
-.container h2 {
-  margin-bottom: 10px;
-  font-size: 1.2rem;
-}
-
-.sidebar .tool-name {
-  margin-bottom: 20px;
-  font-size: 2.0rem;
 }
 
 /* Upload Section */
@@ -130,61 +116,22 @@
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6);
   text-align: left;
   font-size: 0.8em;
+  overflow-y: auto;
 }
 
 .properties-panel button{
   margin: 0px 10px 10px 0px;
 }
 
-/* Right column (Main) - occupies 80% of the available width */
+/* Right column (Main) */
 .main {
-  width: calc(100vw - 320px);
+  width: calc(100vw - 340px);
   background-color: beige;
   box-sizing: border-box;
 }
 
-/* Graph Area */
 .graph-area {
   box-sizing: border-box;
   border-radius: 4px;
   background-color: beige;
-}
-
-/* Provided CSS snippet */
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
-}
-
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
 }
