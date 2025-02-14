@@ -4,21 +4,27 @@
 
 /* Container: two columns */
 .container {
+  width: 100vw;
+  height: 100vh;
   display: flex;
 }
 
 .sidebar-container {
   width: 320px;
-  height: 100vh;
+  height: 100%;
   overflow-y: auto;
+  background-color: #aaa;
+  display: flex;
 }
 
 /* Left column (Sidebar) - occupies 20% of the available width */
 .sidebar {
-  padding: 10px;
+  padding: 0px 10px 0px 10px;
   border-radius: 8px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   text-align: left;
+  display: flex;
+  flex-direction: column;
 }
 
 .container h2 {
@@ -28,7 +34,7 @@
 
 .sidebar .tool-name {
   margin-bottom: 20px;
-  font-size: 1.5rem;
+  font-size: 2.0rem;
 }
 
 /* Upload Section */
@@ -61,11 +67,13 @@
 
 /* Controls (Node Count and Reset) */
 .controls {
+  padding: 10px 0
 }
 
 .node-count-control label {
   display: block;
   margin-bottom: 10px;
+  font-size: 1.0em;
 }
 
 .node-count-control input {
@@ -86,8 +94,6 @@
 
 /* Entity Selection */
 .entity-selection {
-  height: 30vh;
-  margin-bottom: 20px;
 }
 
 .entity-buttons {

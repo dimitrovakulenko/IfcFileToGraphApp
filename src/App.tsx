@@ -110,15 +110,46 @@ const App: React.FC = () => {
   const handleNodeTypeClick = (type: string) => {
     setActiveNodeTypes((prev) => {
       const newSet = new Set(prev);
+      var turnOn = true;
       if (newSet.has(type)) {
-        newSet.delete(type); // Turn off
+        newSet.delete(type);
+        turnOn = false;
       } else {
-        newSet.add(type); // Turn on
+        newSet.add(type);
       }
-      updateGraphDisplay(newSet);
+      updateGraphDisplayWith(type, turnOn);
       return newSet;
     });
   };
+
+  const updateGraphDisplayWith = (type: String, turnOn: boolean) => {
+    var updatedNodes: any[];
+    if(turnOn){
+      updatedNodes = displayGraphData.nodes
+      const lenthBefore = updatedNodes.length
+
+      fullGraphData.nodes.forEach(n => {
+        if(n.data.type == type){
+          const found = updatedNodes.find(n2 => n2.data.id == n.data.id)
+          if(!found){
+            if(updatedNodes.length < lenthBefore + initialNodeCount)
+              updatedNodes.push(n)
+          }            
+        }
+      })      
+    }
+    else {
+      updatedNodes = displayGraphData.nodes.filter(n => n.data.type != type)      
+    }
+
+    const nodeIds = new Set(updatedNodes.map((node) => String(node.data.id)));
+    const updatedEdges = fullGraphData.edges.filter(
+      (edge) => nodeIds.has(String(edge.data.source)) && nodeIds.has(String(edge.data.target))
+    );
+
+    setDisplayGraphData({ nodes: updatedNodes, edges: updatedEdges });
+    setGraphKey((prev) => prev + 1);
+  }
 
   const updateGraphDisplay = (activeTypes: Set<string>) => {
     const filteredNodes = fullGraphData.nodes.filter((node) =>
@@ -127,9 +158,9 @@ const App: React.FC = () => {
   
     const nodeIds = new Set(filteredNodes.map((node) => String(node.data.id)));
     const filteredEdges = fullGraphData.edges.filter(
-      (edge) => nodeIds.has(edge.data.source) && nodeIds.has(edge.data.target)
+      (edge) => nodeIds.has(String(edge.data.source)) && nodeIds.has(String(edge.data.target))
     );
-  
+
     setDisplayGraphData({ nodes: filteredNodes, edges: filteredEdges });
     setGraphKey((prev) => prev + 1);
   };
@@ -174,72 +205,75 @@ const App: React.FC = () => {
         edges: [...prev.edges, ...newEdges.filter(edge => !existingEdgeIds.has(String(edge.data.id)))]
       };
     });
+    setGraphKey((prev) => prev + 1);
   };  
 
   return (
     <div className="container">
       {/* Left Column (20%) */}
       <div className="sidebar-container">
-      <div className="sidebar">
-        <h1 className="tool-name">IFC Graph Viewer</h1>
+        <div className="sidebar">
+          <h1 className="tool-name">IFC Graph Viewer</h1>
 
-        <div className="upload-section">
-          <input type="file" accept=".ifc" onChange={handleFileChange} />
-          <button onClick={uploadAndFetchGraph} disabled={loading || !file}>
-            {loading ? "Processing..." : "Upload and Process Graph"}
-          </button>
-          {uploadProgress > 0 && uploadProgress < 100 && (
-            <p className="upload-progress">Uploading... {uploadProgress}%</p>
+          <div className="upload-section">
+            <input type="file" accept=".ifc" onChange={handleFileChange} />
+            <button onClick={uploadAndFetchGraph} disabled={loading || !file}>
+              {loading ? "Processing..." : "Upload and Process Graph"}
+            </button>
+            {uploadProgress > 0 && uploadProgress < 100 && (
+              <p className="upload-progress">Uploading... {uploadProgress}%</p>
+            )}
+          </div>
+
+          {fullGraphData.nodes.length > 0 && (
+              <div className="entity-selection">
+                <h2>Choose Entity Type</h2>
+                <div className="entity-buttons">
+                  {nodeTypes.map((type, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleNodeTypeClick(type)}
+                      className={activeNodeTypes.has(type) ? "active" : ""}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+              </div>
+          )}
+
+          {fullGraphData.nodes.length > 0 && (
+              <div className="controls">
+                <div className="node-count-control">
+                  <label>
+                    Number of nodes:
+                    <input
+                      type="number"
+                      value={initialNodeCount}
+                      onChange={handleNodeCountChange}
+                      min="1"
+                    />
+                  </label>
+                </div>
+                <button onClick={resetView} className="reset-btn">
+                  Reset View
+                </button>
+              </div>
+          )}
+
+          {selectedNode && (
+            <div className="properties-panel">
+              <h2>Node Details</h2>
+              {Object.entries(selectedNode).map(([key, value]) => (
+                <p key={key}>
+                  <strong>{key}:</strong> {JSON.stringify(value)}
+                </p>
+              ))}
+              <button onClick={() => expandNode(selectedNode.id)}>Expand Neighbors</button>
+              <button onClick={() => setSelectedNode(null)}>Close</button>
+            </div>
           )}
         </div>
-
-        <div className="controls">
-          <div className="node-count-control">
-            <label>
-              Number of nodes:
-              <input
-                type="number"
-                value={initialNodeCount}
-                onChange={handleNodeCountChange}
-                min="1"
-              />
-            </label>
-          </div>
-          <button onClick={resetView} className="reset-btn">
-            Reset View
-          </button>
-        </div>
-
-        {fullGraphData.nodes.length > 0 && (
-          <div className="entity-selection">
-            <h2>Choose Entity Type</h2>
-            <div className="entity-buttons">
-              {nodeTypes.map((type, index) => (
-                <button
-                  key={index}
-                  onClick={() => handleNodeTypeClick(type)}
-                  className={activeNodeTypes.has(type) ? "active" : ""}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {selectedNode && (
-          <div className="properties-panel">
-            <h2>Node Details</h2>
-            {Object.entries(selectedNode).map(([key, value]) => (
-              <p key={key}>
-                <strong>{key}:</strong> {JSON.stringify(value)}
-              </p>
-            ))}
-            <button onClick={() => expandNode(selectedNode.id)}>Expand Neighbors</button>
-            <button onClick={() => setSelectedNode(null)}>Close</button>
-          </div>
-        )}
-      </div>
       </div>
 
       {/* Right Column (80%) */}
@@ -253,7 +287,7 @@ const App: React.FC = () => {
                 name: "cola",
                 fit: true,
                 padding: 30,
-                nodeRepulsion: 2000,
+                nodeRepulsion: 200,
                 idealEdgeLength: 100,
                 edgeElasticity: 0.5,
                 gravity: 0.2,
@@ -269,6 +303,32 @@ const App: React.FC = () => {
                 cy.on("click", (_: any) => {
                   setSelectedNode(null)
                 });
+
+                cy.style([
+                  {
+                    selector: "node",
+                    style: {
+                      "label": "data(label)",
+                      "font-size": "6px",
+                      "text-valign": "center",
+                      "text-halign": "center",
+                      //"color": "#333",
+                      //"background-color": "pink",
+                      "width": "20px",
+                      "height": "20px",
+                    },
+                  },
+                  {
+                    selector: "edge",
+                    style: {
+                      "width": 1.5,
+                      "line-color": "#999",
+                      "target-arrow-color": "#999",
+                      "target-arrow-shape": "triangle",
+                      "curve-style": "bezier",
+                    },
+                  },
+                ]);
               }}
             />
           )}
