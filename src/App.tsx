@@ -34,6 +34,7 @@ const App: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [selectedNode, setSelectedNode] = useState<any>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   // Ref for the Cytoscape instance
   const cyRef = useRef<any>(null);
@@ -285,9 +286,9 @@ const App: React.FC = () => {
                 fit: true,
                 padding: 30,
                 nodeRepulsion: 2048,
-                idealEdgeLength: 200,
+                idealEdgeLength: 400,
                 edgeElasticity: 0.5,
-                gravity: 0.2,
+                gravity: 0.5,
                 animate: true,
               }}
               style={{ height: "100vh" }}
@@ -296,10 +297,18 @@ const App: React.FC = () => {
                 cy.on("tap", "node", (event: any) => {
                   const nodeData = event.target.data();
                   setSelectedNode(nodeData);
+                  setSelectedNodeId(nodeData.id);
                 });
                 cy.on("click", (_: any) => {
                   setSelectedNode(null)
                 });
+
+                if (selectedNodeId) {
+                  const node = cy.$id(selectedNodeId);
+                  if (node) {
+                    node.select();
+                  }
+                }
 
                 cy.style([
                   {
