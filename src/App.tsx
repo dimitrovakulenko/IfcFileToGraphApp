@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import CytoscapeComponent from "react-cytoscapejs";
 import cytoscape from "cytoscape";
 import cola from "cytoscape-cola";
@@ -25,6 +25,35 @@ const App: React.FC = () => {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   const cyRef = useRef<any>(null);
+
+  const setGraphDataFrom = (graphString:any) => {
+    const { nodes, edges } = graphString;
+
+    const nodeIds = new Set(nodes.map((node: any) => String(node.data.id)));
+    const validEdges = edges.filter(
+      (edge: any) =>
+        nodeIds.has(String(edge.data.source)) &&
+        nodeIds.has(String(edge.data.target))
+    );
+    setFullGraphData({ nodes, edges: validEdges });
+
+    const types = new Set<string>(nodes.map((node: any) => node.data.type));
+    setNodeTypes(Array.from(types));
+  }
+
+  useEffect(() => {
+    const loadDefaultGraph = async () => {
+      try {
+        const response = await fetch("/example_graph.json");
+        const data = await response.json();
+        console.log(data);
+        setGraphDataFrom(data)
+      } catch (error) {
+        console.error("Error loading default graph:", error);
+      }
+    };
+    loadDefaultGraph();
+  }, []);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -72,18 +101,7 @@ const App: React.FC = () => {
       }
 
       if (lastResponse) {
-        const { nodes, edges } = lastResponse;
-
-        const nodeIds = new Set(nodes.map((node: any) => String(node.data.id)));
-        const validEdges = edges.filter(
-          (edge: any) =>
-            nodeIds.has(String(edge.data.source)) &&
-            nodeIds.has(String(edge.data.target))
-        );
-        setFullGraphData({ nodes, edges: validEdges });
-
-        const types = new Set<string>(nodes.map((node: any) => node.data.type));
-        setNodeTypes(Array.from(types));
+        setGraphDataFrom(lastResponse);
       }
     } catch (error) {
       console.error("Error uploading file or fetching graph data:", error);
@@ -108,7 +126,7 @@ const App: React.FC = () => {
   };
 
   const updateGraphDisplayWith = (type: string, turnOn: boolean) => {
-    console.log('updateGraphDisplayWith', type, turnOn)
+    //console.log('updateGraphDisplayWith', type, turnOn)
     if (!cyRef.current) return;
     const cy = cyRef.current;
   
