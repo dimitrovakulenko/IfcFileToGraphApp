@@ -135,3 +135,18 @@
   border-radius: 4px;
   background-color: beige;
 }
+
+.expand-button {
+  background-color: hsl(238, 80%, 59%);
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 20px;
+  text-align: center;
+  transition: opacity 0.5s ease-in-out;
+}

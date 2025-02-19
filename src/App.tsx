@@ -2,9 +2,13 @@ import React, { useState, useRef, useEffect } from "react";
 import CytoscapeComponent from "react-cytoscapejs";
 import cytoscape from "cytoscape";
 import cola from "cytoscape-cola";
+import popper from "cytoscape-popper";
+import { createPopper } from "@popperjs/core";
 import "./App.css";
 
 cytoscape.use(cola);
+var createdPopper = popper(createPopper)
+cytoscape.use(createdPopper);
 
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB per chunk
 
@@ -290,7 +294,6 @@ const App: React.FC = () => {
 
     console.log(cy.nodes())
 
-
     cy.batch(() => {
       fullGraphData.edges.forEach((edge) => {
         if (edge.data.source === nodeId || edge.data.target === nodeId) {
@@ -407,7 +410,7 @@ const App: React.FC = () => {
             <CytoscapeComponent
               elements={[]}
               style={{ height: "100vh" }}
-              cy={(cy) => {
+              cy={(cy:any) => {
                 cyRef.current = cy;
                 cy.on("tap", "node", (event: any) => {
                   const nodeData = event.target.data();
@@ -416,6 +419,137 @@ const App: React.FC = () => {
                 cy.on("click", (_: any) => {
                   setSelectedNodeId(null)
                 });
+               
+                cy.on("mouseover", "node", (event: any) => {
+                  const node = event.target;
+                  
+                  // If a popper already exists, do nothing.
+                  if (node.scratch("popperInstance")) {
+                    console.log('already exists')
+                    return;
+                  }
+            
+                  // Start a timer to show the popper after a delay (e.g., 300ms)
+                  const hoverTimer = setTimeout(() => {
+                    // Create the popper instance
+                    const popperInstance = node.popper({
+                      content: () => {
+                        console.log('popping')
+
+                        const button = document.createElement("button");
+                        button.innerHTML = "+";
+                        button.className = "expand-button";
+           
+                        // When the button is clicked, call expandNode and remove the popper immediately.
+                        button.onclick = (e) => {
+                          console.log('onClick', node)
+                          e.stopPropagation();
+                          expandNode(node.id());
+                          // Immediately fade out and remove the popper.
+                          if (node.scratch("popperInstance")) {
+                            console.log('popperInstance')
+                            const popEl = node.scratch("popperInstance").state.elements.popper;
+                            if (popEl) {
+                              console.log('popEl')
+                              popEl.style.color = "red";
+                              if (popEl.parentNode) {
+                                popEl.parentNode.removeChild(popEl);
+                                console.log('removed')
+                              }
+                            }
+                            node.scratch("popperInstance").destroy();
+                            node.removeScratch("popperInstance");
+                            console.log('remove popperInstance')
+                            popperInstance.update();
+                          }
+                        };
+            
+                        // Append the button to document.body (so it becomes part of the DOM)
+                        document.body.appendChild(button);
+                        return button;
+                      },
+                      popper: {
+                        placement: "top",
+                        strategy: "fixed",
+                        modifiers: [
+                          {
+                            name: "flip",
+                            enabled: false,
+                          },
+                          {
+                            name: "offset",
+                            options: { offset: [0, 10] },
+                          },
+                        ],
+                        container: document.body,
+                      },
+                    });
+            
+                    popperInstance.update();
+            
+                    // Store the popper instance on the node for later cleanup.
+                    node.scratch("popperInstance", popperInstance);
+            
+                    // Start a timer to fade out the popper after a certain duration (e.g., 2000ms)
+                    const fadeTimer = setTimeout(() => {
+                      const popEl = popperInstance.state.elements.popper;
+                      if (popEl) {
+                        popEl.style.opacity = "0";
+                        setTimeout(() => {
+                          if (popEl.parentNode) {
+                            popEl.parentNode.removeChild(popEl);
+                          }
+                          popperInstance.destroy();
+                          node.removeScratch("popperInstance");
+                          console.log('remove popperInstance')
+                        }, 1000);
+                      }
+                    }, 1500);
+            
+                    node.scratch("fadeTimer", fadeTimer);
+                  }, 500);
+            
+                  node.scratch("hoverTimer", hoverTimer);
+                });
+            
+                cy.on("mouseout", "node", (event: any) => {
+                  const node = event.target;
+            
+                  // Clear the hover timer if still pending.
+                  const hoverTimer = node.scratch("hoverTimer");
+                  if (hoverTimer) {
+                    clearTimeout(hoverTimer);
+                    node.removeScratch("hoverTimer");
+                  }
+            
+                  // Clear the fade timer.
+                  const fadeTimer = node.scratch("fadeTimer");
+                  if (fadeTimer) {
+                    clearTimeout(fadeTimer);
+                    node.removeScratch("fadeTimer");
+                  }
+            
+                  // Fade out and destroy the popper if it exists.
+                  const popperInstance = node.scratch("popperInstance");
+                  if (popperInstance) {
+                    const popEl = popperInstance.state.elements.popper;
+                    if (popEl) {
+                      popEl.style.opacity = "0";
+                      setTimeout(() => {
+                        if (popEl.parentNode) {
+                          popEl.parentNode.removeChild(popEl);
+                        }
+                        popperInstance.destroy();
+                        node.removeScratch("popperInstance");
+                        console.log('remove popperInstance')
+                      }, 300);
+                    } else {
+                      popperInstance.destroy();
+                      node.removeScratch("popperInstance");
+                      console.log('remove popperInstance')
+                    }
+                  }
+                });               
 
                 if (selectedNodeId) {
                   const node = cy.$id(selectedNodeId);
