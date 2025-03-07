@@ -10,8 +10,6 @@ cytoscape.use(cola);
 var createdPopper = popper(createPopper);
 cytoscape.use(createdPopper);
 
-const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB per chunk
-
 const App: React.FC = () => {
   const [fullGraphData, setFullGraphData] = useState<{ nodes: any[]; edges: any[] }>({
     nodes: [],
@@ -22,14 +20,14 @@ const App: React.FC = () => {
   const [initialNodeCount, setInitialNodeCount] = useState<number>(100);
   const [loading, setLoading] = useState<boolean>(false);
   const [file, setFile] = useState<File | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   const cyRef = useRef<any>(null);
-  // Global refs for popper management.
+ 
+  const fullGraphDataRef = useRef(fullGraphData);  
+
   const activePopperRef = useRef<any>(null);
   const activeNodeIdRef = useRef<string | null>(null);
-  const activeHoverTimerRef = useRef<any>(null);
   const activeFadeTimerRef = useRef<any>(null);
 
   const setGraphDataFrom = (graphString: any) => {
@@ -44,6 +42,10 @@ const App: React.FC = () => {
     const types = new Set<string>(nodes.map((node: any) => node.data.type));
     setNodeTypes(Array.from(types));
   };
+
+  useEffect(() => {
+    fullGraphDataRef.current = fullGraphData;
+  }, [fullGraphData]);
 
   useEffect(() => {
     const loadDefaultGraph = async () => {
@@ -62,7 +64,6 @@ const App: React.FC = () => {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       setFile(event.target.files[0]);
-      setUploadProgress(0);
     }
   };
 
@@ -76,29 +77,23 @@ const App: React.FC = () => {
     setSelectedNodeId(null);
     setActiveNodeTypes(new Set<string>());
     setNodeTypes([]);
-    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-    const fileId = Date.now().toString();
-    let lastResponse = null;
+  
     try {
-      for (let chunkNumber = 0; chunkNumber < totalChunks; chunkNumber++) {
-        const start = chunkNumber * CHUNK_SIZE;
-        const end = Math.min(file.size, start + CHUNK_SIZE);
-        const chunk = file.slice(start, end);
-        const response = await fetch("api/upload", {
+      const formData = new FormData();
+      formData.append("file", file);
+     
+      const response = await fetch(
+        `/api/upload`, // ?max_nodes=1000000&max_relationships=1000000
+        {
           method: "POST",
-          body: chunk,
-          headers: {
-            "Content-Type": "application/octet-stream",
-            "file-id": fileId,
-            "chunk-number": chunkNumber.toString(),
-            "total-chunks": totalChunks.toString(),
-          },
-        });
-        if (response.ok) lastResponse = await response.json();
-        setUploadProgress(Math.round(((chunkNumber + 1) / totalChunks) * 100));
-      }
-      if (lastResponse) {
-        setGraphDataFrom(lastResponse);
+          body: formData
+        }
+      );
+      if (response.ok) {
+        const jsonData = await response.json();
+        setGraphDataFrom(jsonData);
+      } else {
+        console.error("Error uploading file. Status:", response.status);
       }
     } catch (error) {
       console.error("Error uploading file or fetching graph data:", error);
@@ -231,28 +226,33 @@ const App: React.FC = () => {
     updateCyLayout(cy);
   };
 
-  const expandNode = (nodeId: string) => {
+  const expandNode = (nodeId: string, graph: { nodes: any[]; edges: any[] }|undefined = undefined ) => {
     if (!cyRef.current) return;
+    if(graph === undefined)
+      graph = fullGraphData;
+
     const cy = cyRef.current;
     cy.batch(() => {
-      fullGraphData.edges.forEach((edge) => {
+      graph.edges.forEach((edge) => {
         if (edge.data.source === nodeId) {
           const targetExists = cy.getElementById(edge.data.target).nonempty();
           if (!targetExists) {
-            const targetNode = fullGraphData.nodes.find(
+            const targetNode = graph.nodes.find(
               (n) => String(n.data.id) === String(edge.data.target)
             );
             if (targetNode) {
+              console.log('Adding targetNode')
               cy.add({ group: "nodes", ...targetNode });
             }
           }
         } else if (edge.data.target === nodeId) {
           const sourceExists = cy.getElementById(edge.data.source).nonempty();
           if (!sourceExists) {
-            const sourceNode = fullGraphData.nodes.find(
+            const sourceNode = graph.nodes.find(
               (n) => String(n.data.id) === String(edge.data.source)
             );
             if (sourceNode) {
+              console.log('Adding sourceNode')
               cy.add({ group: "nodes", ...sourceNode });
             }
           }
@@ -261,7 +261,7 @@ const App: React.FC = () => {
     });
     console.log(cy.nodes());
     cy.batch(() => {
-      fullGraphData.edges.forEach((edge) => {
+      graph.edges.forEach((edge) => {
         if (edge.data.source === nodeId || edge.data.target === nodeId) {
           if (cy.getElementById(edge.data.id).empty()) {
             const sourceExists = cy.getElementById(edge.data.source).nonempty();
@@ -295,6 +295,22 @@ const App: React.FC = () => {
     layout.run();
   };
 
+  const removeActivePopper = () => {
+    if (activePopperRef.current) {
+      const popEl = activePopperRef.current.state.elements.popper;
+      if (popEl && popEl.parentNode) {
+        popEl.parentNode.removeChild(popEl);
+      }
+      activePopperRef.current.destroy();
+      activePopperRef.current = null;
+      activeNodeIdRef.current = null;
+    }
+    if (activeFadeTimerRef.current) {
+      clearTimeout(activeFadeTimerRef.current);
+      activeFadeTimerRef.current = null;
+    }
+  }
+
   return (
     <div className="container">
       <div className="sidebar-container">
@@ -305,9 +321,9 @@ const App: React.FC = () => {
             <button onClick={uploadAndFetchGraph} disabled={loading || !file}>
               {loading ? "Processing..." : "Upload and Process Graph"}
             </button>
-            {uploadProgress > 0 && uploadProgress < 100 && (
+            {/* {uploadProgress > 0 && uploadProgress < 100 && (
               <p className="upload-progress">Uploading... {uploadProgress}%</p>
-            )}
+            )} */}
           </div>
           {fullGraphData.nodes.length > 0 && (
             <div className="entity-selection">
@@ -373,10 +389,12 @@ const App: React.FC = () => {
             style={{ height: "100vh" }}
             cy={(cy: any) => {
               cyRef.current = cy;
+
               cy.on("tap", "node", (event: any) => {
                 const nodeData = event.target.data();
                 setSelectedNodeId(nodeData.id);
               });
+
               cy.on("click", (_: any) => {
                 setSelectedNodeId(null);
               });
@@ -384,146 +402,59 @@ const App: React.FC = () => {
               cy.on("mouseover", "node", (event: any) => {
                 const node = event.target;
                 const nodeId = node.id();
-
-                // If there's an active popper for a different node, remove it.
-                if (
-                  activePopperRef.current &&
-                  activeNodeIdRef.current &&
-                  activeNodeIdRef.current !== nodeId
-                ) {
-                  const prevPopEl =
-                    activePopperRef.current.state.elements.popper;
-                  if (prevPopEl && prevPopEl.parentNode) {
-                    prevPopEl.parentNode.removeChild(prevPopEl);
-                  }
-                  activePopperRef.current.destroy();
-                  activePopperRef.current = null;
-                  activeNodeIdRef.current = null;
-                  if (activeHoverTimerRef.current) {
-                    clearTimeout(activeHoverTimerRef.current);
-                    activeHoverTimerRef.current = null;
-                  }
-                  if (activeFadeTimerRef.current) {
-                    clearTimeout(activeFadeTimerRef.current);
-                    activeFadeTimerRef.current = null;
-                  }
+              
+                // If a popper already exists for this node, do nothing.
+                if (activePopperRef.current && activeNodeIdRef.current === nodeId) {
+                  return;
                 }
-
-                // If a popper is already active for this node, restart its timers.
-                if (
-                  activePopperRef.current &&
-                  activeNodeIdRef.current === nodeId
-                ) {
-                  if (activeFadeTimerRef.current) {
-                    clearTimeout(activeFadeTimerRef.current);
-                    activeFadeTimerRef.current = null;
-                  }
-                  if (activeHoverTimerRef.current) {
-                    clearTimeout(activeHoverTimerRef.current);
-                    activeHoverTimerRef.current = null;
-                  }
+                
+                // If a popper exists for a different node, remove it.
+                if (activePopperRef.current) {
+                  removeActivePopper();
                 }
-
-                // Start a timer to show the popper after a delay.
-                activeHoverTimerRef.current = setTimeout(() => {
-                  const popperInstance = node.popper({
-                    content: () => {
-                      const button = document.createElement("button");
-                      button.innerHTML = "+";
-                      button.className = "expand-button";
-                      button.onclick = (e) => {
-                        e.stopPropagation();
-                        const popEl =
-                          activePopperRef.current?.state.elements.popper;
-                        console.log(popEl)
-                        expandNode(nodeId);
-                        if (popEl && popEl.parentNode) {
-                          popEl.parentNode.removeChild(popEl);
-                        }
-                        activePopperRef.current.destroy();
-                        activePopperRef.current = null;
-                        activeNodeIdRef.current = null;
-                      };
-                      document.body.appendChild(button);
-                      return button;
-                    },
-                    popper: {
-                      placement: "top",
-                      strategy: "fixed",
-                      modifiers: [
-                        {
-                          name: "flip",
-                          enabled: false,
-                        },
-                        {
-                          name: "offset",
-                          options: { offset: [0, 10] },
-                        },
-                      ],
-                      container: document.body,
-                    },
-                  });
-                  popperInstance.update();
-                  // Store the popper instance and node id in global refs.
-                  activePopperRef.current = popperInstance;
-                  activeNodeIdRef.current = nodeId;
-
-                  // Start a fade timer to remove the popper.
-                  activeFadeTimerRef.current = setTimeout(() => {
-                    const popEl = popperInstance.state.elements.popper;
-                    if (popEl) {
-                      popEl.style.opacity = "0";
-                      setTimeout(() => {
-                        if (popEl.parentNode) {
-                          popEl.parentNode.removeChild(popEl);
-                        }
-                        popperInstance.destroy();
-                        activePopperRef.current = null;
-                        activeNodeIdRef.current = null;
-                      }, 1000);
-                    }
-                  }, 1500);
-                }, 500);
-              });
-
-              cy.on("mouseout", "node", (event: any) => {
-                const node = event.target;
-                // Clear the hover timer if still pending.
-                if (activeHoverTimerRef.current) {
-                  clearTimeout(activeHoverTimerRef.current);
-                  activeHoverTimerRef.current = null;
-                }
-                // Clear the fade timer.
-                if (activeFadeTimerRef.current) {
-                  clearTimeout(activeFadeTimerRef.current);
-                  activeFadeTimerRef.current = null;
-                }
-                // Fade out and destroy the popper if it exists for this node.
-                if (
-                  activePopperRef.current &&
-                  activeNodeIdRef.current === node.id()
-                ) {
-                  const popEl = activePopperRef.current.state.elements.popper;
+                
+                // Create the popper instance.
+                const popperInstance = node.popper({
+                  content: () => {
+                    const button = document.createElement("button");
+                    button.innerHTML = "+";
+                    button.className = "expand-button";
+                    button.onclick = (e) => {
+                      e.stopPropagation();
+                      expandNode(nodeId, fullGraphDataRef.current);
+                      removeActivePopper();
+                    };
+                    document.body.appendChild(button);
+                    return button;
+                  },
+                  popper: {
+                    placement: "top",
+                    strategy: "fixed",
+                    modifiers: [
+                      { name: "flip", enabled: false },
+                      { name: "offset", options: { offset: [0, 10] } }
+                    ],
+                    container: document.body,
+                  },
+                });
+                popperInstance.update();
+                activePopperRef.current = popperInstance;
+                activeNodeIdRef.current = nodeId;
+              
+                // Set a timer to fade out the popper after 1500ms,
+                // then remove it completely after an additional 500ms.
+                activeFadeTimerRef.current = setTimeout(() => {
+                  const popEl = popperInstance.state.elements.popper;
                   if (popEl) {
+                    popEl.style.transition = "opacity 0.5s";
                     popEl.style.opacity = "0";
-                    setTimeout(() => {
-                      if (popEl.parentNode) {
-                        popEl.parentNode.removeChild(popEl);
-                      }
-                      if(activePopperRef.current)
-                        activePopperRef.current.destroy();
-                      activePopperRef.current = null;
-                      activeNodeIdRef.current = null;
-                    }, 300);
-                  } else {
-                    if(activePopperRef.current)
-                      activePopperRef.current.destroy();
-                    activePopperRef.current = null;
-                    activeNodeIdRef.current = null;
                   }
-                }
+                  setTimeout(() => {
+                    removeActivePopper();
+                  }, 500);
+                }, 1500);
               });
-
+                          
               if (selectedNodeId) {
                 const node = cy.$id(selectedNodeId);
                 if (node) {
