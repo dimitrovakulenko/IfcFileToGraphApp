@@ -54,6 +54,11 @@ const App: React.FC = () => {
         const data = await response.json();
         console.log(data);
         setGraphDataFrom(data);
+
+        if (cyRef.current) {
+          const currentZoom = cyRef.current.zoom();
+          cyRef.current.zoom(currentZoom * 1.5);
+        }
       } catch (error) {
         console.error("Error loading default graph:", error);
       }
@@ -92,6 +97,12 @@ const App: React.FC = () => {
       if (response.ok) {
         const jsonData = await response.json();
         setGraphDataFrom(jsonData);
+
+        if (cyRef.current) {
+          const currentZoom = cyRef.current.zoom();
+          cyRef.current.zoom(currentZoom * 1.5);
+          cyRef.current.center();
+        }
       } else {
         console.error("Error uploading file. Status:", response.status);
       }
@@ -121,6 +132,7 @@ const App: React.FC = () => {
     if (!cyRef.current) return;
     const cy = cyRef.current;
     let updatedNodes = cy.nodes().toArray();
+    const hadNodes = !cy.nodes().empty();
     if (turnOn) {
       const nodesToAdd: any[] = [];
       fullGraphData.nodes.forEach((n) => {
@@ -165,10 +177,11 @@ const App: React.FC = () => {
       );
       cy.add(edgesToAdd);
     });
-    updateCyLayout(cy);
+    const hasNodes = !cy.nodes().empty();
+    updateCyLayout(cy, !hadNodes && hasNodes);
   };
 
-  const updateGraphDisplay = (activeTypes: Set<string>) => {
+  const updateGraphDisplay = (activeTypes: Set<string>, recenter:boolean = false) => {
     if (!cyRef.current) return;
     const cy = cyRef.current;
     const filteredNodes = fullGraphData.nodes.filter((node) =>
@@ -180,12 +193,14 @@ const App: React.FC = () => {
         nodeIds.has(String(edge.data.source)) &&
         nodeIds.has(String(edge.data.target))
     );
+    const hadNodes = !cy.nodes().empty();
     cy.batch(() => {
       cy.elements().remove();
       cy.add(filteredNodes.map((node) => ({ group: "nodes", ...node })));
       cy.add(filteredEdges.map((edge) => ({ group: "edges", ...edge })));
     });
-    updateCyLayout(cy);
+    const hasNodes = !cy.nodes().empty();
+    updateCyLayout(cy, recenter || (!hadNodes && hasNodes));
   };
 
   const handleNodeCountChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -198,7 +213,7 @@ const App: React.FC = () => {
     const defaultCount = 100;
     setInitialNodeCount(defaultCount);
     setSelectedNodeId(null);
-    updateGraphDisplay(activeNodeTypes);
+    updateGraphDisplay(activeNodeTypes, true);
   };
 
   const debugNode = (nodeId: string) => {
@@ -223,6 +238,7 @@ const App: React.FC = () => {
         edge.remove();
       });
     });
+
     updateCyLayout(cy);
   };
 
@@ -291,6 +307,11 @@ const App: React.FC = () => {
       idealEdgeLength: 400,
       edgeElasticity: 0.5,
       gravity: 0.5,
+    });
+    layout.on("layoutstop", () => {
+      console.log('Center');
+      if(fit)
+        cy.center();
     });
     layout.run();
   };
