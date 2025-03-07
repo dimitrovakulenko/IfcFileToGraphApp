@@ -10,6 +10,8 @@ cytoscape.use(cola);
 var createdPopper = popper(createPopper);
 cytoscape.use(createdPopper);
 
+const backendUrl = process.env.VITE_BACKEND_URL || 'https://ifcfile-to-graph.azurewebsites.net';
+
 const App: React.FC = () => {
   const [fullGraphData, setFullGraphData] = useState<{ nodes: any[]; edges: any[] }>({
     nodes: [],
@@ -88,7 +90,7 @@ const App: React.FC = () => {
       formData.append("file", file);
      
       const response = await fetch(
-        `/api/upload`, // ?max_nodes=1000000&max_relationships=1000000
+        `${backendUrl}/api/upload`, // ?max_nodes=1000000&max_relationships=1000000
         {
           method: "POST",
           body: formData
